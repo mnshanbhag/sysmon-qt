@@ -110,8 +110,8 @@ def test_live_plot_append_unknown_series_raises() -> None:
 def test_compact_view_construction() -> None:
     v = CompactView()
     # Compact view should exist and have a fixed size.
-    assert v.width() == 250
-    assert v.height() == 150
+    assert v.width() == 180
+    assert v.height() == 100
 
 
 def test_compact_view_update() -> None:
@@ -121,4 +121,4 @@ def test_compact_view_update() -> None:
     assert "25.0%" in v._cpu_label.text()
     assert "50.0%" in v._mem_label.text()
     assert "Disk:" in v._disk_label.text()
-    assert "Network:" in v._net_label.text()
+    assert "Net:" in v._net_label.text()

@@ -6,8 +6,8 @@ The view is designed for passive monitoring without the full tabbed interface.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, QPoint
+from PySide6.QtGui import QFont, QMouseEvent
 from PySide6.QtWidgets import (
     QLabel,
     QVBoxLayout,
@@ -42,46 +42,54 @@ class CompactView(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle("sysmon — compact")
+        self.setWindowTitle("sysmon")
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
         )
 
-        # Set a small default size for the compact window (250x150)
-        self.setFixedSize(250, 150)
+        self.setFixedSize(180, 100)
+        self._drag_pos = QPoint()
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(2)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(1)
 
-        # Title
-        title = QLabel("System Monitor")
+        # Title with hint
+        title = QLabel("sysmon (Ctrl+Shift+C)")
         title_font = title.font()
-        title_font.setPointSize(9)
+        title_font.setPointSize(7)
         title_font.setBold(True)
         title.setFont(title_font)
+        title.setStyleSheet("color: palette(mid);")
         layout.addWidget(title)
 
         # Metric labels (CPU, Memory, Disk, Network)
         self._cpu_label = QLabel("CPU: —%")
-        self._cpu_label.setStyleSheet("color: #4caf50;")
+        self._cpu_label.setStyleSheet("color: #4caf50; font-size: 8pt;")
         layout.addWidget(self._cpu_label)
 
-        self._mem_label = QLabel("Memory: —%")
-        self._mem_label.setStyleSheet("color: #2196f3;")
+        self._mem_label = QLabel("Mem: —%")
+        self._mem_label.setStyleSheet("color: #2196f3; font-size: 8pt;")
         layout.addWidget(self._mem_label)
 
         self._disk_label = QLabel("Disk: —")
-        self._disk_label.setStyleSheet("color: #ff9800;")
+        self._disk_label.setStyleSheet("color: #ff9800; font-size: 8pt;")
         layout.addWidget(self._disk_label)
 
-        self._net_label = QLabel("Network: —")
-        self._net_label.setStyleSheet("color: #9c27b0;")
+        self._net_label = QLabel("Net: —")
+        self._net_label.setStyleSheet("color: #9c27b0; font-size: 8pt;")
         layout.addWidget(self._net_label)
 
-        layout.addStretch()
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Start dragging on mouse press."""
+        self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        """Drag the window when mouse moves."""
+        if event.buttons() == Qt.MouseButton.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
 
     def on_update(self, u: MetricsUpdate) -> None:
         """Update metrics from a MetricsUpdate."""
@@ -89,7 +97,7 @@ class CompactView(QWidget):
         self._cpu_label.setText(f"CPU: {u.cpu.aggregate:.1f}%")
 
         # Memory usage
-        self._mem_label.setText(f"Memory: {u.memory.percent:.1f}%")
+        self._mem_label.setText(f"Mem: {u.memory.percent:.1f}%")
 
         # Disk I/O rate
         disk_bps = u.disk_rate.read_bps + u.disk_rate.write_bps
@@ -97,4 +105,4 @@ class CompactView(QWidget):
 
         # Network rate
         net_bps = sum(r.rx_bps + r.tx_bps for r in u.network_rates.values())
-        self._net_label.setText(f"Network: {_fmt_rate(net_bps)}")
+        self._net_label.setText(f"Net: {_fmt_rate(net_bps)}")
