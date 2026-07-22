@@ -86,6 +86,25 @@ class SystemInfo:
     cpu_count_physical: int
 
 
+@dataclass(frozen=True)
+class ThermalSensor:
+    """One temperature sensor reading."""
+
+    name: str               # e.g., "coretemp", "acpitz"
+    label: str              # e.g., "Core 0", "Ambient"
+    current: float          # current temperature in Celsius
+    high: float | None      # high threshold in Celsius (if available)
+    critical: float | None  # critical threshold in Celsius (if available)
+
+
+@dataclass(frozen=True)
+class ThermalSample:
+    """One thermal snapshot — all available temperature sensors."""
+
+    timestamp: float
+    sensors: tuple[ThermalSensor, ...]  # temperature readings
+
+
 class Collector(Protocol):
     """Common shape for collectors — they expose a `collect()` method."""
 
