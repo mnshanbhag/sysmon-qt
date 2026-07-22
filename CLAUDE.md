@@ -170,6 +170,18 @@ When adding a new collector, add a corresponding unit test that mocks the underl
 
 The app sets `HighDpiScaleFactorRoundingPolicy.PassThrough` to ensure consistent scaling across different distros. This is set early in `app.py` and should not be changed without testing on multiple machines.
 
+## Feature Release Workflow
+
+**IMPORTANT:** Only mark a feature as "✅ Shipped" in `FEATURE_IDEAS.md` **after** its branch has been merged into master.
+
+Workflow:
+1. Implement feature on a branch (e.g., `feature_process_view`)
+2. Once complete and tested, merge the branch into master via PR or direct merge
+3. Update `FEATURE_IDEAS.md` on master to move the feature from "🆕 Proposed" to "✅ Shipped"
+4. Verify the feature code is actually present on master before committing the backlog update
+
+This prevents the inconsistency where the backlog claims a feature is shipped but the code doesn't exist on master.
+
 ## Requirements
 
 - Linux (psutil calls are Linux-specific).
