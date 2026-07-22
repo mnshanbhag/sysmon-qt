@@ -65,7 +65,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self._tabs)
 
         # ---- Compact view -------------------------------------------------
-        self._compact_view = CompactView()
+        self._compact_view = CompactView(toggle_callback=self._toggle_view_mode)
         if self._config.mode == "compact":
             self._show_compact_mode()
         else:

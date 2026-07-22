@@ -6,9 +6,10 @@ The view is designed for passive monitoring without the full tabbed interface.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QPoint
-from PySide6.QtGui import QFont, QMouseEvent
+from PySide6.QtCore import Qt, QPoint, QRect
+from PySide6.QtGui import QFont, QMouseEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QLabel,
     QVBoxLayout,
     QWidget,
@@ -40,7 +41,7 @@ def _fmt_rate(bps: float) -> str:
 class CompactView(QWidget):
     """Minimal floating window showing key metrics in a compact layout."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, toggle_callback=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("sysmon")
         self.setWindowFlags(
@@ -51,6 +52,19 @@ class CompactView(QWidget):
 
         self.setFixedSize(180, 100)
         self._drag_pos = QPoint()
+        self._toggle_callback = toggle_callback
+
+        # Position at bottom-right corner (just above taskbar)
+        screen = QApplication.primaryScreen()
+        if screen:
+            screen_geom = screen.availableGeometry()
+            x = screen_geom.right() - self.width() - 10
+            y = screen_geom.bottom() - self.height() - 10
+            self.move(x, y)
+
+        # Register keyboard shortcut for toggle (works even when hidden)
+        if toggle_callback:
+            QShortcut(QKeySequence("Ctrl+Shift+C"), self, toggle_callback)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 6, 6, 6)
