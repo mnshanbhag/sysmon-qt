@@ -122,12 +122,14 @@ class MainWindow(QMainWindow):
             self._status_kernel.setText(f"Kernel: {update.system.kernel}")
         if update.system.uptime_s:
             self._status_uptime.setText(f"Uptime: {_fmt_uptime(update.system.uptime_s)}")
-        self._overview.on_update(update)
-        self._cpu.on_update(update)
-        self._memory.on_update(update)
-        self._disk.on_update(update)
-        self._network.on_update(update)
-        self._compact_view.on_update(update)
+        if self._config.mode == "full":
+            self._overview.on_update(update)
+            self._cpu.on_update(update)
+            self._memory.on_update(update)
+            self._disk.on_update(update)
+            self._network.on_update(update)
+        else:
+            self._compact_view.on_update(update)
 
     def _refresh_status_last(self) -> None:
         if self._last_update == 0.0:
@@ -154,7 +156,9 @@ class MainWindow(QMainWindow):
         self._config.mode = "full"
         self._save_window_geometry()
         self.setWindowTitle("sysmon — system performance")
-        self.setCentralWidget(self._tabs)
+        if self.centralWidget() != self._tabs:
+            self.setCentralWidget(self._tabs)
+        self._tabs.show()
         self.show()
         if self._compact_view.isVisible():
             self._compact_view.hide()
@@ -163,7 +167,7 @@ class MainWindow(QMainWindow):
         """Switch to compact floating mode."""
         self._config.mode = "compact"
         self._save_window_geometry()
-        self.setCentralWidget(None)
+        self._tabs.hide()
         self.hide()
         self._compact_view.show()
 
