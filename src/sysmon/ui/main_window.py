@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QRect
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QLabel,
@@ -14,6 +14,8 @@ from PySide6.QtWidgets import (
 )
 
 from sysmon.core.sampler import MetricSampler, MetricsUpdate
+from sysmon.core.config import load_config, save_config, WindowState
+from sysmon.ui.compact_view import CompactView
 from sysmon.ui.cpu_view import CpuView
 from sysmon.ui.disk_view import DiskView
 from sysmon.ui.memory_view import MemoryView
@@ -43,6 +45,10 @@ class MainWindow(QMainWindow):
         self._system: object = None  # populated on the first update
         self._last_update: float = 0.0
 
+        # ---- Load config and restore window state -------------------------
+        self._config = load_config()
+        self._restore_window_geometry()
+
         # ---- Tabs ---------------------------------------------------------
         self._overview = OverviewView()
         self._cpu = CpuView(history_size=history_size)
@@ -58,6 +64,13 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._network, "Network")
         self.setCentralWidget(self._tabs)
 
+        # ---- Compact view -------------------------------------------------
+        self._compact_view = CompactView()
+        if self._config.mode == "compact":
+            self._show_compact_mode()
+        else:
+            self._show_full_mode()
+
         # ---- Status bar --------------------------------------------------
         sb = QStatusBar()
         self.setStatusBar(sb)
@@ -70,7 +83,13 @@ class MainWindow(QMainWindow):
             sb.addPermanentWidget(lbl)
 
         # ---- Menu ---------------------------------------------------------
-        # Trivial: a Quit action and a Refresh-now trigger.
+        # View mode toggle
+        toggle_mode_act = QAction("Toggle Compact Mode", self)
+        toggle_mode_act.setShortcut("Ctrl+Shift+C")
+        toggle_mode_act.triggered.connect(self._toggle_view_mode)
+        self.menuBar().addAction(toggle_mode_act)
+
+        # Quit action
         quit_act = QAction("Quit", self)
         quit_act.setShortcut("Ctrl+Q")
         quit_act.triggered.connect(self.close)
@@ -108,6 +127,7 @@ class MainWindow(QMainWindow):
         self._memory.on_update(update)
         self._disk.on_update(update)
         self._network.on_update(update)
+        self._compact_view.on_update(update)
 
     def _refresh_status_last(self) -> None:
         if self._last_update == 0.0:
@@ -115,6 +135,44 @@ class MainWindow(QMainWindow):
             return
         age = time.time() - self._last_update
         self._status_last.setText(f"Last update: {age:.1f}s ago")
+
+    # ---- View mode management ----------------------------------------------
+
+    def _restore_window_geometry(self) -> None:
+        """Restore window geometry from config."""
+        x, y, width, height = self._config.geometry
+        self.setGeometry(x, y, width, height)
+
+    def _save_window_geometry(self) -> None:
+        """Save current window geometry to config."""
+        geom = self.geometry()
+        self._config.geometry = (geom.x(), geom.y(), geom.width(), geom.height())
+        save_config(self._config)
+
+    def _show_full_mode(self) -> None:
+        """Switch to full tabbed mode."""
+        self._config.mode = "full"
+        self._save_window_geometry()
+        self.setWindowTitle("sysmon — system performance")
+        self.setCentralWidget(self._tabs)
+        self.show()
+        if self._compact_view.isVisible():
+            self._compact_view.hide()
+
+    def _show_compact_mode(self) -> None:
+        """Switch to compact floating mode."""
+        self._config.mode = "compact"
+        self._save_window_geometry()
+        self.setCentralWidget(None)
+        self.hide()
+        self._compact_view.show()
+
+    def _toggle_view_mode(self) -> None:
+        """Toggle between full and compact modes."""
+        if self._config.mode == "full":
+            self._show_compact_mode()
+        else:
+            self._show_full_mode()
 
     # ---- Lifecycle ---------------------------------------------------------
 
@@ -125,3 +183,4 @@ class MainWindow(QMainWindow):
     def shutdown(self) -> None:
         self._sampler.request_stop()
         # Don't block forever on join — QThread will exit when run() returns.
+        self._save_window_geometry()

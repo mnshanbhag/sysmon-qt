@@ -37,7 +37,13 @@ def main(argv: list[str] | None = None) -> int:
 
     sampler = MetricSampler()
     window = MainWindow(sampler)
-    window.show()
+    # Window visibility is handled by the mode (full/compact).
+    # In full mode, show() is called in _show_full_mode().
+    # In compact mode, show() is called in _show_compact_mode().
+    if window._config.mode == "full":
+        window.show()
+    else:
+        window._compact_view.show()
 
     # Clean shutdown on Ctrl+C.
     signal.signal(signal.SIGINT, lambda *_: app.quit())
