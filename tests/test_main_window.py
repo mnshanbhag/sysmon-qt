@@ -21,6 +21,7 @@ from sysmon.collectors.base import (
     CpuSample,
     MemorySample,
 )
+from sysmon.collectors.process import ProcessSample
 from sysmon.core.sampler import DiskRate, MetricsUpdate, NicRate
 from sysmon.ui.main_window import MainWindow
 
@@ -33,6 +34,7 @@ def _update(hostname: str = "testhost", kernel: str = "6.1.0", uptime: float = 1
         disk_rate=DiskRate(0.0, 0.0, 0.0, 0.0),
         mounts=(),
         network_rates={"eth0": NicRate(0.0, 0.0)},
+        processes=ProcessSample(0.0, (), ()),
         system=__import__("sysmon.collectors.base", fromlist=["SystemInfo"]).SystemInfo(
             hostname=hostname, kernel=kernel, os_release="", uptime_s=uptime,
             boot_time=0.0, cpu_count_logical=2, cpu_count_physical=1,
@@ -62,7 +64,7 @@ def test_main_window_handles_no_system_info() -> None:
     u = _update()
     u = MetricsUpdate(
         timestamp=u.timestamp, cpu=u.cpu, memory=u.memory, disk_rate=u.disk_rate,
-        mounts=u.mounts, network_rates=u.network_rates, system=__import__(
+        mounts=u.mounts, network_rates=u.network_rates, processes=u.processes, system=__import__(
             "sysmon.collectors.base", fromlist=["SystemInfo"]
         ).SystemInfo(hostname="", kernel="", os_release="", uptime_s=0.0,
                      boot_time=0.0, cpu_count_logical=0, cpu_count_physical=0),
