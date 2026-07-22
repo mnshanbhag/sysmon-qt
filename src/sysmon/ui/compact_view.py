@@ -71,12 +71,13 @@ class CompactView(QWidget):
         layout.setSpacing(1)
 
         # Title with hint
-        title = QLabel("sysmon (Ctrl+Shift+C)")
+        title = QLabel("sysmon")
         title_font = title.font()
         title_font.setPointSize(7)
         title_font.setBold(True)
         title.setFont(title_font)
         title.setStyleSheet("color: palette(mid);")
+        title.setToolTip("Middle-click to toggle full view")
         layout.addWidget(title)
 
         # Metric labels (CPU, Memory, Disk, Network)
@@ -97,11 +98,15 @@ class CompactView(QWidget):
         layout.addWidget(self._net_label)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        """Start dragging on mouse press."""
-        self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+        """Handle mouse clicks: middle-click toggles, left-click starts drag."""
+        if event.button() == Qt.MouseButton.MiddleButton:
+            if self._toggle_callback:
+                self._toggle_callback()
+        elif event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        """Drag the window when mouse moves."""
+        """Drag the window when left mouse button is held."""
         if event.buttons() == Qt.MouseButton.LeftButton:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
 
