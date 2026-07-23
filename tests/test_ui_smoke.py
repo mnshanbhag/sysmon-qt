@@ -29,6 +29,7 @@ from sysmon.collectors.base import (
     ThermalSample,
     ThermalSensor,
 )
+from sysmon.collectors.process import ProcessInfo, ProcessSample
 from sysmon.core.sampler import DiskRate, MetricsUpdate, NicRate
 from sysmon.ui.cpu_view import CpuView
 from sysmon.ui.disk_view import DiskView
@@ -36,6 +37,7 @@ from sysmon.ui.memory_view import MemoryView
 from sysmon.ui.network_view import NetworkView
 from sysmon.ui.overview_view import OverviewView
 from sysmon.ui.plot_widget import LivePlot
+from sysmon.ui.process_view import ProcessView
 from sysmon.ui.thermal_view import ThermalView
 
 
@@ -64,6 +66,17 @@ def _update(cpu_pct: float = 25.0, mem_pct: float = 50.0) -> MetricsUpdate:
             sensors=(
                 ThermalSensor("coretemp", "Core 0", 50.0, 80.0, 100.0),
                 ThermalSensor("coretemp", "Core 1", 52.0, 80.0, 100.0),
+            ),
+        ),
+        processes=ProcessSample(
+            timestamp=0.0,
+            top_cpu=(
+                ProcessInfo(1000, "python", 15.5, 25.0, 256.0, "python app.py"),
+                ProcessInfo(1001, "firefox", 10.2, 35.0, 512.0, "firefox"),
+            ),
+            top_memory=(
+                ProcessInfo(1001, "firefox", 5.1, 35.0, 512.0, "firefox"),
+                ProcessInfo(1000, "python", 2.3, 25.0, 256.0, "python app.py"),
             ),
         ),
     )
@@ -97,6 +110,26 @@ def test_overview_view_construction() -> None:
     v.on_update(_update())
     # The first tile's plot should have a series named "h".
     assert "h" in v._cpu._plot.series_names()
+
+
+def test_process_view_construction() -> None:
+    v = ProcessView()
+    v.on_update(_update())
+    # After update, table should have 2 rows (from the test data).
+    assert v._table.rowCount() == 2
+
+
+def test_process_view_switches_modes() -> None:
+    v = ProcessView()
+    v.on_update(_update())
+    # Initially sorted by CPU, python is first.
+    assert v._table.item(0, v.COL_NAME).text() == "python"
+
+    # Switch to memory mode.
+    v._mode_combo.setCurrentIndex(1)
+    v.on_update(_update())
+    # Now firefox should be first (highest memory).
+    assert v._table.item(0, v.COL_NAME).text() == "firefox"
 
 
 def test_live_plot_append() -> None:
