@@ -24,6 +24,7 @@ from sysmon.collectors.base import (
     MountUsage,
     NicCounters,
     SystemInfo,
+    ThermalSample,
 )
 from sysmon.collectors.cpu import CpuCollector
 from sysmon.collectors.disk import DiskCollector
@@ -31,6 +32,7 @@ from sysmon.collectors.memory import MemoryCollector
 from sysmon.collectors.network import NetworkCollector
 from sysmon.collectors.process import ProcessCollector, ProcessSample
 from sysmon.collectors.system import SystemInfoCollector
+from sysmon.collectors.thermal import ThermalCollector
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,7 @@ class MetricsUpdate:
     disk_rate: DiskRate
     mounts: tuple[MountUsage, ...]   # snapshot, not a counter
     network_rates: dict[str, NicRate]  # nic -> rate
+    thermal: ThermalSample = field(default_factory=lambda: _EMPTY_THERMAL)
     processes: ProcessSample = field(default_factory=lambda: _EMPTY_PROCESSES)
     system: SystemInfo = field(default_factory=lambda: _EMPTY_SYSTEM)
 
@@ -70,6 +73,8 @@ class MetricsUpdate:
     def has_system(self) -> bool:
         return self.system is not _EMPTY_SYSTEM
 
+
+_EMPTY_THERMAL = ThermalSample(timestamp=0.0, sensors=())
 
 _EMPTY_SYSTEM = SystemInfo(
     hostname="",
@@ -123,6 +128,7 @@ class MetricSampler(QThread):
         network: NetworkCollector | None = None,
         process: ProcessCollector | None = None,
         system: SystemInfoCollector | None = None,
+        thermal: ThermalCollector | None = None,
         interval_s: float | None = None,
         parent=None,
     ) -> None:
@@ -131,6 +137,7 @@ class MetricSampler(QThread):
         self._memory = memory or MemoryCollector()
         self._disk = disk or DiskCollector()
         self._network = network or NetworkCollector()
+        self._thermal = thermal or ThermalCollector()
         self._process = process or ProcessCollector()
         self._system_collector = system or SystemInfoCollector()
         self._interval_s = (
@@ -179,6 +186,7 @@ class MetricSampler(QThread):
         mem_sample = self._memory.collect()
         disk_counters, mounts = self._disk.collect()
         net_ts, nic_counters = self._network.collect()
+        thermal_sample = self._thermal.collect()
         process_sample = self._process.collect()
 
         disk_rate = self._disk_rate(disk_counters)
@@ -191,6 +199,7 @@ class MetricSampler(QThread):
             disk_rate=disk_rate,
             mounts=tuple(mounts),
             network_rates=nic_rates,
+            thermal=thermal_sample,
             processes=process_sample,
             system=self._system if self._system is not None else _EMPTY_SYSTEM,
         )
