@@ -21,6 +21,8 @@ from sysmon.ui.disk_view import DiskView
 from sysmon.ui.memory_view import MemoryView
 from sysmon.ui.network_view import NetworkView
 from sysmon.ui.overview_view import OverviewView
+from sysmon.ui.process_view import ProcessView
+from sysmon.ui.thermal_view import ThermalView
 
 
 def _fmt_uptime(seconds: float) -> str:
@@ -55,6 +57,8 @@ class MainWindow(QMainWindow):
         self._memory = MemoryView(history_size=history_size)
         self._disk = DiskView(history_size=history_size)
         self._network = NetworkView(history_size=history_size)
+        self._thermal = ThermalView(history_size=history_size)
+        self._processes = ProcessView()
 
         self._tabs = QTabWidget()
         self._tabs.addTab(self._overview, "Overview")
@@ -62,6 +66,8 @@ class MainWindow(QMainWindow):
         self._tabs.addTab(self._memory, "Memory")
         self._tabs.addTab(self._disk, "Disk")
         self._tabs.addTab(self._network, "Network")
+        self._tabs.addTab(self._thermal, "Thermal")
+        self._tabs.addTab(self._processes, "Processes")
         self.setCentralWidget(self._tabs)
 
         # ---- Compact view -------------------------------------------------
@@ -128,6 +134,8 @@ class MainWindow(QMainWindow):
             self._memory.on_update(update)
             self._disk.on_update(update)
             self._network.on_update(update)
+            self._thermal.on_update(update)
+            self._processes.on_update(update)
         else:
             self._compact_view.on_update(update)
 
