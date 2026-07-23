@@ -31,6 +31,7 @@ from sysmon.collectors.base import (
 )
 from sysmon.collectors.process import ProcessInfo, ProcessSample
 from sysmon.core.sampler import DiskRate, MetricsUpdate, NicRate
+from sysmon.ui.compact_view import CompactView
 from sysmon.ui.cpu_view import CpuView
 from sysmon.ui.disk_view import DiskView
 from sysmon.ui.memory_view import MemoryView
@@ -147,6 +148,23 @@ def test_live_plot_append_unknown_series_raises() -> None:
     p = LivePlot()
     with pytest.raises(KeyError):
         p.append("nope", 1.0)
+
+
+def test_compact_view_construction() -> None:
+    v = CompactView()
+    # Compact view should exist and have a fixed size.
+    assert v.width() == 180
+    assert v.height() == 100
+
+
+def test_compact_view_update() -> None:
+    v = CompactView()
+    v.on_update(_update())
+    # After update, labels should have content.
+    assert "25.0%" in v._cpu_label.text()
+    assert "50.0%" in v._mem_label.text()
+    assert "Disk:" in v._disk_label.text()
+    assert "Net:" in v._net_label.text()
 
 
 def test_thermal_view_construction() -> None:

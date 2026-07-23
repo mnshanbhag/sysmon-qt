@@ -15,7 +15,9 @@ from PySide6.QtWidgets import QApplication
 
 _app = QApplication.instance() or QApplication(sys.argv)  # type: ignore[arg-type]
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+from pathlib import Path
+import tempfile
 
 from sysmon.collectors.base import (
     CpuSample,
@@ -70,3 +72,87 @@ def test_main_window_handles_no_system_info() -> None:
                      boot_time=0.0, cpu_count_logical=0, cpu_count_physical=0),
     )
     win._handle_update(u)
+
+
+def test_main_window_compact_view_receives_updates() -> None:
+    """Test that compact view receives metric updates."""
+    sampler = MagicMock()
+    sampler.isRunning.return_value = False
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "config.json"
+        with patch("sysmon.core.config.CONFIG_FILE", config_path):
+            with patch("sysmon.core.config.CONFIG_DIR", Path(tmpdir)):
+                win = MainWindow(sampler, history_size=10)
+
+                # Send an update and verify compact view has been updated.
+                win._handle_update(_update())
+
+                # Compact view labels should have content.
+                assert "%" in win._compact_view._cpu_label.text()
+                assert "%" in win._compact_view._mem_label.text()
+
+
+def test_main_window_toggle_view_mode() -> None:
+    """Test toggling between full and compact modes."""
+    sampler = MagicMock()
+    sampler.isRunning.return_value = False
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "config.json"
+        with patch("sysmon.core.config.CONFIG_FILE", config_path):
+            with patch("sysmon.core.config.CONFIG_DIR", Path(tmpdir)):
+                win = MainWindow(sampler, history_size=10)
+
+                # Initially in full mode
+                assert win._config.mode == "full"
+                assert win.isVisible()
+
+                # Toggle to compact mode
+                win._toggle_view_mode()
+                assert win._config.mode == "compact"
+                assert not win.isVisible()
+                assert win._compact_view.isVisible()
+
+                # Toggle back to full mode
+                win._toggle_view_mode()
+                assert win._config.mode == "full"
+                assert win.isVisible()
+
+
+def test_main_window_show_full_mode() -> None:
+    """Test switching to full mode."""
+    sampler = MagicMock()
+    sampler.isRunning.return_value = False
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "config.json"
+        with patch("sysmon.core.config.CONFIG_FILE", config_path):
+            with patch("sysmon.core.config.CONFIG_DIR", Path(tmpdir)):
+                win = MainWindow(sampler, history_size=10)
+
+                # Switch to compact mode first
+                win._show_compact_mode()
+                assert win._config.mode == "compact"
+
+                # Now switch back to full
+                win._show_full_mode()
+                assert win._config.mode == "full"
+                assert win.isVisible()
+
+
+def test_main_window_show_compact_mode() -> None:
+    """Test switching to compact mode."""
+    sampler = MagicMock()
+    sampler.isRunning.return_value = False
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "config.json"
+        with patch("sysmon.core.config.CONFIG_FILE", config_path):
+            with patch("sysmon.core.config.CONFIG_DIR", Path(tmpdir)):
+                win = MainWindow(sampler, history_size=10)
+
+                # Initially in full mode
+                assert win._config.mode == "full"
+
+                # Switch to compact mode
+                win._show_compact_mode()
+                assert win._config.mode == "compact"
+                assert not win.isVisible()
+                assert win._compact_view.isVisible()

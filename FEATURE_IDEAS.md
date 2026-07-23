@@ -9,7 +9,8 @@ pick one and hand it to `feature-implementer` to actually build it.
 
 ## ✅ Shipped
 
-(none yet)
+### 8. Lightweight Floating Window / Taskbar Widget (feature_compact_floating_window)
+Compact floating window mode for passive monitoring without full tabbed interface. Features CompactView widget showing mini metrics (CPU, memory, disk, network), window state management with persistent geometry in ~/.config/sysmon/config.json, and toggle between full/compact modes via menu (Ctrl+Shift+C). Window always stays on top for unobtrusive monitoring.
 
 ---
 
@@ -26,9 +27,3 @@ Display CPU package temperature, disk drive temps (if available) in a new Therma
 - **Why:** Critical for performance troubleshooting and hardware health. Developers/sysadmins monitor temps during load testing. `psutil.sensors_temperatures()` provides this on Linux.
 - **Scope:** small — touches: new `ThermalCollector`, update `MetricsUpdate`, new `ThermalView` tab with charts for trend monitoring
 - **Tension:** Temperature data is optional/sparse (depends on kernel drivers). Graceful degradation needed. Display challenge: multiple sensors per device need clear labeling.
-
-### 8. Lightweight Floating Window / Taskbar Widget
-Support a compact floating window or taskbar widget mode for passive monitoring without the full tabbed interface.
-- **Why:** Alternative use case: users may want a small, always-on-top widget showing key metrics without cluttering the desktop.
-- **Scope:** small/medium — touches: new `CompactView` widget, window state management (floating, docked, full), persistent geometry/state in config
-- **Tension:** Qt window management complexity (keeping window on top, dock integration varies by DE). Frame/style differences between compact and full mode.
