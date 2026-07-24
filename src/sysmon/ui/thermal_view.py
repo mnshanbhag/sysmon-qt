@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from PySide6.QtCore import Qt
@@ -14,9 +16,63 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sysmon.core.history import RingBuffer
+from sysmon.collectors.base import ThermalSensor
 from sysmon.core.sampler import MetricsUpdate
 from sysmon.ui.plot_widget import LivePlot
+
+# Sensor classification tables. Device name is checked before label, because
+# psutil reports the NVMe controller as "nvme" (not "nvme0") with labels like
+# "Composite" that name no device at all.
+_CPU_DEVICES = ("coretemp", "k10temp", "zenpower", "cpu_thermal", "cpu-thermal")
+_DISK_DEVICE_PREFIXES = ("nvme", "drivetemp")
+_DISK_DEVICE_RE = re.compile(r"^(sd|hd)[a-z]+$")
+_CPU_LABEL_HINTS = ("core", "cpu", "tctl", "tdie", "package")
+_DISK_LABEL_HINTS = ("composite", "disk", "drive", "nand")
+
+_SERIES_COLORS = ("#4caf50", "#2196f3", "#ff9800", "#f44336", "#9c27b0", "#00bcd4")
+
+
+def classify_sensor(name: str, label: str) -> str:
+    """Return "cpu", "disk", or "other" for a thermal sensor.
+
+    Anything unrecognised is "other" rather than "cpu": GPU and ambient sensors
+    are common and must not be charted as CPU temperatures.
+    """
+    device = name.lower()
+    text = label.lower()
+
+    if device in _CPU_DEVICES:
+        return "cpu"
+    if device.startswith(_DISK_DEVICE_PREFIXES) or _DISK_DEVICE_RE.match(device):
+        return "disk"
+    if any(hint in text for hint in _CPU_LABEL_HINTS):
+        return "cpu"
+    if any(hint in text for hint in _DISK_LABEL_HINTS):
+        return "disk"
+    return "other"
+
+
+def select_disk_series(sensors: Iterable[ThermalSensor]) -> set[str]:
+    """Pick one representative sensor per physical drive, as a set of series keys.
+
+    A single NVMe drive exposes several sensors ("Composite", "Sensor 1",
+    "Sensor 2"), which would otherwise draw three lines for one disk. The NVMe
+    spec's "Composite" is the drive's overall temperature, so prefer it; fall
+    back to the device's first sensor for drives that don't report one.
+    """
+    by_device: dict[str, list[ThermalSensor]] = {}
+    for sensor in sensors:
+        if classify_sensor(sensor.name, sensor.label) == "disk":
+            by_device.setdefault(sensor.name, []).append(sensor)
+
+    chosen: set[str] = set()
+    for group in by_device.values():
+        primary = next(
+            (s for s in group if s.label.lower() == "composite"),
+            group[0],
+        )
+        chosen.add(f"{primary.name}:{primary.label}")
+    return chosen
 
 
 @dataclass
@@ -32,6 +88,8 @@ class _SensorState:
     critical_threshold: float | None
     # For charting: one series per sensor, keyed by "device_name:label"
     series_key: str
+    # The plot owning this series, or None for sensors we don't chart.
+    plot: LivePlot | None = None
 
 
 class ThermalView(QWidget):
@@ -40,6 +98,7 @@ class ThermalView(QWidget):
         self._history_size = history_size
         self._sensor_states: dict[str, _SensorState] = {}  # keyed by series_key
         self._sensor_labels: dict[str, QLabel] = {}  # keyed by series_key
+        self._color_idx = 0  # next palette slot; keeps colors stable across runs
 
         # Charts for CPU and disk temps.
         self._cpu_plot = LivePlot(
@@ -102,12 +161,20 @@ class ThermalView(QWidget):
         # Track which series we've seen this update.
         seen_series_keys = set()
 
+        # One line per physical drive; the drive's other sensors stay listed.
+        charted_disk_keys = select_disk_series(u.thermal.sensors)
+
         for sensor in u.thermal.sensors:
             series_key = f"{sensor.name}:{sensor.label}"
             seen_series_keys.add(series_key)
 
             # Update or create sensor state.
             if series_key not in self._sensor_states:
+                kind = classify_sensor(sensor.name, sensor.label)
+                if kind == "disk" and series_key not in charted_disk_keys:
+                    kind = "other"
+                plot = {"cpu": self._cpu_plot, "disk": self._disk_plot}.get(kind)
+
                 state = _SensorState(
                     name=sensor.name,
                     label=sensor.label,
@@ -117,6 +184,7 @@ class ThermalView(QWidget):
                     high_threshold=sensor.high,
                     critical_threshold=sensor.critical,
                     series_key=series_key,
+                    plot=plot,
                 )
                 self._sensor_states[series_key] = state
 
@@ -125,23 +193,9 @@ class ThermalView(QWidget):
                 self._sensor_labels[series_key] = info_label
                 self._sensor_layout.addRow(f"{state.label}:", info_label)
 
-                # Add series to appropriate chart.
-                color = self._get_series_color(sensor.name)
-                if sensor.name.lower() in ("coretemp", "k10temp"):
-                    # CPU temperature sensor.
-                    self._cpu_plot.add_series(series_key, color, width=2)
-                elif sensor.name.lower() in ("sda", "sdb", "sdc", "nvme0", "nvme1"):
-                    # Disk temperature sensor.
-                    self._disk_plot.add_series(series_key, color, width=2)
-                else:
-                    # Generic: try to guess from label.
-                    if "core" in sensor.label.lower() or "cpu" in sensor.label.lower():
-                        self._cpu_plot.add_series(series_key, color, width=2)
-                    elif "disk" in sensor.label.lower() or "drive" in sensor.label.lower():
-                        self._disk_plot.add_series(series_key, color, width=2)
-                    else:
-                        # Default to CPU plot.
-                        self._cpu_plot.add_series(series_key, color, width=2)
+                # "other" sensors (GPU, ambient) are listed but not charted.
+                if plot is not None:
+                    plot.add_series(series_key, self._next_series_color(), width=2)
             else:
                 state = self._sensor_states[series_key]
 
@@ -158,14 +212,14 @@ class ThermalView(QWidget):
                 info_str += f", critical: {state.critical_threshold:.1f}°C"
             self._sensor_labels[series_key].setText(info_str)
 
-            # Append to chart.
-            if series_key in self._cpu_plot.series_names():
-                self._cpu_plot.append(series_key, sensor.current)
-            elif series_key in self._disk_plot.series_names():
-                self._disk_plot.append(series_key, sensor.current)
+            # Append to chart, if this sensor has one.
+            if state.plot is not None:
+                state.plot.append(series_key, sensor.current)
 
-    def _get_series_color(self, device_name: str) -> str:
-        """Return a color for a device based on its name."""
-        colors = ["#4caf50", "#2196f3", "#ff9800", "#f44336", "#9c27b0", "#00bcd4"]
-        idx = hash(device_name) % len(colors)
-        return colors[idx]
+    def _next_series_color(self) -> str:
+        """Return the next palette color, cycling. Assigned per series (not per
+        device) so a device's sensors are distinguishable, and sequentially so
+        colors don't reshuffle between runs the way `hash()` on a str would."""
+        color = _SERIES_COLORS[self._color_idx % len(_SERIES_COLORS)]
+        self._color_idx += 1
+        return color

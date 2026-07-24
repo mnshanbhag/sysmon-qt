@@ -17,6 +17,19 @@ import psutil
 
 from sysmon.collectors.base import ThermalSample, ThermalSensor
 
+# NVMe reports "threshold not implemented" as 0xFFFF Kelvin, which the kernel
+# passes through as 65261.85 °C. Anything above this is a sentinel, not a
+# temperature — chips throttle long before 200 °C.
+_MAX_PLAUSIBLE_C = 200.0
+
+
+def _threshold(value: float | None) -> float | None:
+    """Return a threshold in °C, or None if it's absent or a sentinel."""
+    if value is None:
+        return None
+    v = float(value)
+    return v if 0.0 < v <= _MAX_PLAUSIBLE_C else None
+
 
 class ThermalCollector:
     """Snapshots CPU and disk temperatures from all available sensors."""
@@ -56,8 +69,8 @@ class ThermalCollector:
                 try:
                     label = reading.label or f"{device_name}"
                     current = float(reading.current) if reading.current is not None else 0.0
-                    high = float(reading.high) if reading.high is not None else None
-                    critical = float(reading.critical) if reading.critical is not None else None
+                    high = _threshold(reading.high)
+                    critical = _threshold(reading.critical)
 
                     sensor = ThermalSensor(
                         name=device_name,

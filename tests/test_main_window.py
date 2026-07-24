@@ -84,7 +84,8 @@ def test_main_window_compact_view_receives_updates() -> None:
             with patch("sysmon.core.config.CONFIG_DIR", Path(tmpdir)):
                 win = MainWindow(sampler, history_size=10)
 
-                # Send an update and verify compact view has been updated.
+                # Updates only reach the compact view in compact mode.
+                win._show_compact_mode()
                 win._handle_update(_update())
 
                 # Compact view labels should have content.
