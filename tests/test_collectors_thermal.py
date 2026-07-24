@@ -163,3 +163,35 @@ def test_collect_multiple_devices() -> None:
     names = [s.name for s in sample.sensors]
     assert "coretemp" in names
     assert "sda" in names
+
+
+def test_collect_discards_sentinel_thresholds() -> None:
+    """NVMe reports an unimplemented threshold as 0xFFFF Kelvin, which the
+    kernel surfaces as 65261.85 degC. That is a sentinel, not a temperature,
+    and must not reach the UI."""
+    reading = MagicMock()
+    reading.label = "Sensor 1"
+    reading.current = 40.85
+    reading.high = 65261.85
+    reading.critical = 65261.85
+
+    with patch("psutil.sensors_temperatures", return_value={"nvme": [reading]}):
+        sample = ThermalCollector().collect()
+
+    assert sample.sensors[0].current == 40.85
+    assert sample.sensors[0].high is None
+    assert sample.sensors[0].critical is None
+
+
+def test_collect_keeps_plausible_thresholds() -> None:
+    reading = MagicMock()
+    reading.label = "Composite"
+    reading.current = 39.85
+    reading.high = 73.85
+    reading.critical = 75.85
+
+    with patch("psutil.sensors_temperatures", return_value={"nvme": [reading]}):
+        sample = ThermalCollector().collect()
+
+    assert sample.sensors[0].high == 73.85
+    assert sample.sensors[0].critical == 75.85
